@@ -159,39 +159,49 @@ This invariant is the foundation of the admission and reservation logic.
 
 ## 5. System Architecture
 
-The application follows a clean client-server architecture:
+The application follows a clean layered client-server architecture:
 
 ```mermaid
 flowchart TD
-    Student[Student / Guardian]
-    Admin[School Admin]
+    Student["Student / Guardian"]
+    Admin["School Admin"]
 
-    subgraph Frontend["Frontend (React 18 + Vite on Port 5173)"]
-        UI["UI Components (ClassList, HoldDetailModal, MyHolds, Header)"]
-        Context["StudentContext (LocalStorage 17-digit ID)"]
-        Client["API Client (Services)"]
+    subgraph Frontend["Frontend Layer - React 18 + Vite (Port 5173)"]
+        direction TB
+        UI["UI Components<br/>ClassList | HoldDetailModal<br/>MyHolds | Header"]
+        Context["StudentContext<br/>LocalStorage - 17-digit Student ID"]
+        API["API Client / Services"]
+
+        UI --> Context
+        UI --> API
+        Context -.-> API
     end
 
-    subgraph Backend["Backend (ASP.NET Core on Port 8080)"]
+    subgraph Backend["Backend Layer - ASP.NET Core Web API (Port 8080)"]
+        direction TB
         Middleware["ExceptionHandlingMiddleware"]
-        Controllers["ClassesController, HoldsController, MeController"]
-        Services["ClassService, HoldService, StudentIdValidator"]
-        EF["Entity Framework Core DbContext"]
+        Controllers["API Controllers<br/>ClassesController<br/>HoldsController<br/>MeController"]
+        Services["Business Services<br/>ClassService<br/>HoldService<br/>StudentIdValidator"]
+        DbContext["Entity Framework Core<br/>ApplicationDbContext"]
+
+        Middleware --> Controllers
+        Controllers --> Services
+        Services --> DbContext
     end
 
-    subgraph Database["Database (Port 5432)"]
-        DB[("PostgreSQL 16")]
+    subgraph Database["Database Layer - PostgreSQL 16 (Port 5432)"]
+        DB[("PostgreSQL Database")]
     end
 
     Student --> UI
     Admin --> UI
-    UI --> Context
-    UI --> Client
-    Client -->|HTTP + X-Student-Id| Middleware
-    Middleware --> Controllers
-    Controllers --> Services
-    Services --> EF
-    EF -->|SELECT ... FOR UPDATE| DB
+
+    API -->|"HTTP Requests<br/>X-Student-Id Header"| Middleware
+    Middleware -->|"HTTP JSON Responses"| API
+
+    DbContext <-->|"SQL Queries<br/>Transactions + SELECT FOR UPDATE"| DB
+
+    API --> UI
 ```
 
 ### Request Lifecycle
