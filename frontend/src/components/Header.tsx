@@ -70,3 +70,4 @@ export const Header: React.FC<HeaderProps> = ({ currentTab, onTabChange, onOpenC
     </header>
   );
 };
+

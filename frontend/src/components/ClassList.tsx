@@ -181,3 +181,4 @@ export const ClassList: React.FC<ClassListProps> = ({ onHoldCreated, setNotifica
     </div>
   );
 };
+

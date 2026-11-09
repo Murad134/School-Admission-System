@@ -230,3 +230,4 @@ export const HoldDetailModal: React.FC<HoldDetailModalProps> = ({
     </div>
   );
 };
+

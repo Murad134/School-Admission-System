@@ -37,3 +37,4 @@ export const NotificationBanner: React.FC<NotificationBannerProps> = ({ notifica
     </div>
   );
 };
+
