@@ -62,3 +62,4 @@
 - **The Issue:** Vite's strict TypeScript compiler (`tsc && vite build`) failed with `error TS6133: 'setActiveHoldId' is declared but its value is never read`.
 - **How It Was Caught:** Detected by the frontend build script (`npm run build`).
 - **Correction:** Removed the redundant variables, resulting in a zero-warning, zero-error production build.
+

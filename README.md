@@ -1,10 +1,10 @@
-# School Admission System (বিদ্যালয় ভর্তি কার্যক্রম)
+# School Admission System
 
 An online admission system designed for high-concurrency "first-come, first-served" (FCFS) enrollment with **no lottery**, built as a take-home assignment for **Onnorokom Projukti Limited** (Assistant Software Engineer Recruitment).
 
 ---
 
-## 🚀 Tech Stack
+## Tech Stack
 
 - **Backend:** C# (.NET 8+ / ASP.NET Core Web API)
 - **Database:** PostgreSQL 16
@@ -14,7 +14,7 @@ An online admission system designed for high-concurrency "first-come, first-serv
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```text
 School Admission System/
@@ -71,7 +71,7 @@ School Admission System/
 
 ---
 
-## ⚡ Quick Start with Docker
+## Quick Start with Docker
 
 The entire stack (PostgreSQL, Backend API, and Frontend SPA) runs with a single command. **No local dependencies (Node, .NET, or PostgreSQL) need to be installed on the host machine.**
 
@@ -104,7 +104,7 @@ docker compose logs -f postgres
 
 ---
 
-## 🔒 Concurrency Invariant: `held + confirmed <= totalSeats`
+## Concurrency Invariant: `held + confirmed <= totalSeats`
 
 Under no circumstances can total occupied seats exceed `totalSeats`, even under high burst concurrent load.
 
@@ -118,7 +118,7 @@ Under no circumstances can total occupied seats exceed `totalSeats`, even under 
 
 ---
 
-## 🧪 Running Automated Tests
+## Running Automated Tests
 
 The backend test suite contains **30 automated tests** covering all domain rules and high-concurrency race conditions.
 
@@ -135,7 +135,7 @@ dotnet test backend/tests/SchoolAdmissionSystem.Tests/SchoolAdmissionSystem.Test
 
 ---
 
-## 🌐 API Contract Reference
+## API Contract Reference
 
 | Method | Endpoint | Required Headers | Description | Status Codes |
 | :--- | :--- | :--- | :--- | :--- |
@@ -150,7 +150,7 @@ dotnet test backend/tests/SchoolAdmissionSystem.Tests/SchoolAdmissionSystem.Test
 
 ---
 
-## ⚙️ Environment Variables
+## Environment Variables
 
 Copy `.env.example` to `.env` if custom configurations are desired:
 
@@ -163,3 +163,4 @@ Copy `.env.example` to `.env` if custom configurations are desired:
 | `HOLD_DURATION_SECONDS` | `600` | Seat reservation duration in seconds (10 mins) |
 | `ASPNETCORE_URLS` | `http://+:8080` | Backend API listening URL |
 | `VITE_API_BASE_URL` | `http://localhost:8080` | API target for the React frontend |
+
