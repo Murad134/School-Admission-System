@@ -145,3 +145,4 @@ public class HoldLifecycleTests
         Assert.Equal(0, classAfter.HeldSeats);
     }
 }
+
