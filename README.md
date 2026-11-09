@@ -1,297 +1,260 @@
-# School Admission System
+# School Admission System (বিদ্যালয় ভর্তি কার্যক্রম)
 
-An online first-come, first-served school admission system. A student is identified
-by a 17-digit birth registration number supplied in the `X-Student-Id` header.
-There is no login, user registration, lottery, or real payment gateway.
+An online admission system designed for high-concurrency "first-come, first-served" (FCFS) enrollment with **no lottery**, built as a take-home hiring assignment for **Onnorokom Projukti Limited** (Assistant Software Engineer Recruitment).
 
-## What is implemented
+---
 
-- Create and list classes/shifts with a positive seat quota.
-- Reserve a seat for a configurable period (default: 600 seconds).
-- Confirm a held seat through a simulated payment action.
-- Cancel an unconfirmed hold.
-- View the current student's complete hold history.
-- Calculate held, confirmed, and available seats dynamically.
-- Prevent duplicate active/confirmed holds for the same student and class.
-- Serialize hold creation per class in-process and, with PostgreSQL, acquire a
-  database row lock before checking capacity.
-- Refresh class inventory in the frontend every 3.5 seconds.
-- Show a one-second countdown for the selected hold.
+## 🚀 Docker দিয়ে App চালানোর ধাপ (Quick Start with Docker)
 
-Class creation is labelled “Admin” in the UI, but the API currently has no
-authentication or authorization for creating classes. Any caller who can reach the
-API can call `POST /classes`.
+The easiest way to run the entire stack (PostgreSQL, Backend API, and Frontend SPA) is using Docker Compose. **Host মেশিনে Node.js, .NET বা PostgreSQL ইনস্টল থাকার প্রয়োজন নেই।**
 
-## Technology
+### ধাপ ১: প্রজেক্ট চালু করা
+Repository-এর রুট ডিরেক্টরিতে কমান্ড প্রম্পট বা টার্মিনাল খুলে নিচের কমান্ডটি চালান:
 
-- **Backend:** ASP.NET Core Web API, C# and .NET 10 (`net10.0`)
-- **Database:** PostgreSQL 16 in production/development
-- **Data access:** Entity Framework Core 10 and Npgsql
-- **Frontend:** React 18, TypeScript and Vite 5
-- **Tests:** xUnit and EF Core InMemory provider
-- **Containers:** Docker and Docker Compose
+```bash
+docker compose up --build
+```
 
-## Architecture
+এই কমান্ডটি:
+1. PostgreSQL 16 ডাটাবেজ কন্টেইনার প্রস্তুত করবে এবং হেলথচেক সম্পন্ন করবে।
+2. .NET 10 ব্যাকএন্ড বিল্ড করে `http://localhost:8080`-এ চালু করবে।
+3. React 18+ Vite ফ্রন্টএন্ড বিল্ড করে `http://localhost:5173`-এ চালু করবে।
+
+---
+
+### 🌐 Frontend ও Backend কোন URL-এ খুলবে?
+
+কন্টেইনারগুলো সফলভাবে চালু হলে আপনার ব্রাউজারে নিচের URL-এ প্রবেশ করুন:
+
+| সার্ভিস | URL | বিবরণ |
+| :--- | :--- | :--- |
+| **Frontend UI (ব্রাউজারে খুলুন)** | **[http://localhost:5173](http://localhost:5173)** | শিক্ষার্থী ও অ্যাডমিনের মূল ইউজার ইন্টারফেস |
+| **Backend Web API** | **[http://localhost:8080](http://localhost:8080)** | ASP.NET Core REST API সার্ভিস |
+| **PostgreSQL Database** | **`localhost:5432`** | PostgreSQL ডাটাবেজ পোর্ট |
+
+---
+
+### কন্টেইনার বন্ধ করার নিয়ম
+- ডাটাবেজের ডাটা সংরক্ষণ করে কন্টেইনার বন্ধ করতে:
+  ```bash
+  docker compose down
+  ```
+- ডাটাবেজের ডাটা এবং ভলিউম সম্পূর্ণ মুছে ফ্রেশ রিস্টার্ট দিতে:
+  ```bash
+  docker compose down -v
+  ```
+
+---
+
+## 🧪 Test চালানোর নিয়ম (Running Automated Tests)
+
+ব্যাকএন্ডে **xUnit** দিয়ে তৈরি মোট ৩১টি টেস্ট (Unit, Lifecycle এবং High-Burst Concurrency Race Tests) রয়েছে।
+
+### টেস্ট রান করার কমান্ড:
+Repository রুট থেকে নিচের কমান্ডটি চালান:
+
+```bash
+dotnet test backend/tests/SchoolAdmissionSystem.Tests/SchoolAdmissionSystem.Tests.csproj
+```
+
+### বিশেষ Concurrency টেস্টসমূহ:
+1. **High-Burst Concurrency (`CreateHold_UnderHighBurstConcurrency_NeverExceedsTotalSeats`):**
+   - একটি শ্রেণিতে আসন সংখ্যা ৫টি।
+   - ৫০টি ভিন্ন ১৭ অঙ্কের শিক্ষার্থী আইডি থেকে একই মিলিসেকেন্ডে ৫০টি প্যারালাল রিকোয়েস্ট পাঠানো হয়।
+   - **ফলাফল:** ঠিক ৫টি রিকোয়েস্ট `201 Created` পায়, বাকি ৪৫টি রিকোয়েস্ট `409 Conflict` পায়। আসন কখনই ৫-এর বেশি হয় না ($\text{held} + \text{confirmed} \le 5$ সংরক্ষিত থাকে)।
+2. **Race for Final Seat (`CreateHold_SimultaneousRaceForFinalAvailableSeat_AllowsOnlyOneSuccess`):**
+   - ১০টি আসনের মধ্যে ৯টি ইতোমধ্যে সংরক্ষিত, মাত্র ১টি আসন খালি আছে।
+   - ২৫ জন শিক্ষার্থী একসাথে ওই শেষ ১টি আসনের জন্য রিকোয়েস্ট পাঠায়।
+   - **ফলাফল:** ঠিক ১ জন আসন পায়, বাকি ২৪ জন `409 Conflict` পায়। কোনো অবস্থাতেই ওভারবুকিং ঘটে না।
+
+### ফ্রন্টএন্ড বিল্ড টেস্ট:
+```bash
+cd frontend
+npm run build
+```
+Vite ও TypeScript কম্পাইলার শূন্য ওয়ার্নিং ও শূন্য এররে প্রোডাকশন বিল্ড তৈরি করে।
+
+---
+
+## 📋 প্রজেক্টের বৈশিষ্ট্যসমূহ (Features)
+
+### অভিভাবক ও শিক্ষার্থীদের জন্য:
+- **১৭ অঙ্কের জন্ম নিবন্ধন নম্বর:** কোনো পাসওয়ার্ড বা লগইন সিস্টেম নেই; `X-Student-Id` হেডারে শিক্ষার্থীর ১৭ অঙ্কের জন্ম নিবন্ধন নম্বর দিলেই সিস্টেম শিক্ষার্থীকে শনাক্ত করে।
+- **রিয়েল-টাইম আসন তালিকা:** প্রতি ৩.৫ সেকেন্ড পরপর কোনো পেজ রিলোড ছাড়াই নিজে থেকে হালনাগাদ হয়।
+- **সাময়িক আসন সংরক্ষণ (Hold):** আসন খালি থাকলে সাথে সাথে শিক্ষার্থীর নামে সাময়িক সংরক্ষিত (HELD) হয়।
+- **লাইভ কাউন্টডাউন টাইমার:** নির্ধারিত সময় (ডিফল্ট: ১০ মিনিট / ৬০০ সেকেন্ড) কাউন্টডাউন হতে থাকে। টাইমার `00:00`-এ পৌঁছালে পেজ রিলোড ছাড়াই স্ট্যাটাস নিজে থেকে `EXPIRED`-এ পরিণত হয়।
+- **ভর্তি নিশ্চিতকরণ (Payment):** "ভর্তি ফি দিন" বাটনে চাপলে আসনটি স্থায়ীভাবে নিশ্চিত (CONFIRMED) হয়।
+- **আবেদন বাতিল (Cancel):** শিক্ষার্থী চাইলে নিজের আবেদন বাতিল করে আসনটি অন্যদের জন্য সাথে সাথে উন্মুক্ত করে দিতে পারে।
+- **আমার আবেদনসমূহ ("My Applications"):** শিক্ষার্থীর পূর্বের ও বর্তমান সকল আবেদনের স্ট্যাটাস ও মেয়াদের তালিকা।
+
+### স্কুল অ্যাডমিনের জন্য:
+- **নতুন শ্রেণি ও শিফট যোগ:** অ্যাডমিন প্যানেল ("+ নতুন ক্লাস তৈরি (Admin)") থেকে ক্লাসের নাম ও মোট আসন সংখ্যা দিয়ে নতুন শ্রেণি তৈরি করা যায়।
+- **ডুপ্লিকেট ক্লাস প্রতিরোধ:** একই নামের ক্লাস পুনরায় তৈরি করা স্বয়ংক্রিয়ভাবে ব্লক করা হয়।
+
+---
+
+## 💻 Technology Stack
+
+- **Backend:** C# (.NET 10 / ASP.NET Core Web API) — Listening on port `8080`
+- **Database:** PostgreSQL 16 — Port `5432`
+- **ORM & Concurrency:** Entity Framework Core with native PostgreSQL row-level locking (`SELECT ... FOR UPDATE`)
+- **Frontend:** React 18.3+, TypeScript, Vite 5, Modern CSS — Port `5173`
+- **Testing:** xUnit, EF Core InMemory Provider, Asynchronous Multi-Task Concurrency Testing
+- **Orchestration:** Docker & Docker Compose (`docker-compose.yml`)
+
+---
+
+## 🏛️ সিস্টেম আর্কিটেকচার ও রিকোয়েস্ট ফ্লো
 
 ```mermaid
 flowchart TD
-    Browser["React/Vite frontend"]
-    API["ASP.NET Core API"]
-    Services["ClassService / HoldService"]
-    Database[("PostgreSQL")]
+    Browser["React 18+ SPA (Port 5173)"]
+    API["ASP.NET Core Web API (Port 8080)"]
+    Services["HoldService & ClassService"]
+    Postgres[("PostgreSQL 16 Database")]
 
     Browser -->|HTTP + X-Student-Id| API
     API --> Services
-    Services --> Database
+    Services -->|SELECT ... FOR UPDATE| Postgres
 ```
 
-For PostgreSQL hold creation, `HoldService` starts a `ReadCommitted` transaction,
-locks the target class row with `SELECT ... FOR UPDATE`, counts live held and
-confirmed records, and inserts the hold only when capacity remains. The
-application also uses an in-process semaphore per class. The tests use EF Core's
-InMemory provider, so they exercise the service logic and in-process locking, not
-PostgreSQL itself.
+### আসন সংরক্ষণে Concurrency রক্ষার কৌশল:
+1. `HoldService` একটি `ReadCommitted` ডাটাবেজ ট্রানজেকশন শুরু করে।
+2. টার্গেট ক্লাসের রো-এর ওপর এক্সক্লুসিভ লক নেয়:
+   ```sql
+   SELECT * FROM classes WHERE "Id" = @classId FOR UPDATE;
+   ```
+3. এই লকের কারণে একই ক্লাসে সিট পেতে আসা অন্যান্য সকল কনকারেন্ট রিকোয়েস্ট কিউতে অপেক্ষা করে।
+4. লক অবস্থায় বর্তমান সক্রিয় হোল্ড (`Status = 'HELD' AND ExpiresAt > CURRENT_TIMESTAMP`) এবং নিশ্চিত আসন (`Status = 'CONFIRMED'`) গণনা করা হয়।
+5. আসন অবশিষ্ট থাকলে নতুন হোল্ড রেকর্ড ইনসার্ট করে ট্রানজেকশন `COMMIT` করা হয় (`201 Created`)।
+6. আসন অবশিষ্ট না থাকলে ট্রানজেকশন `ROLLBACK` করে `409 Conflict` রিটার্ন করা হয়।
+7. **জিরো-ল্যাটেন্সি আসন পুনরুদ্ধার:** মেয়াদ উত্তীর্ণ হোল্ডের ক্ষেত্রে ডাটাবেজে কোনো ব্যাকগ্রাউন্ড ক্রন জব বা সুইপারের প্রয়োজন হয় না; কুয়েরি করার সময়ই `ExpiresAt <= UtcNow` হলে সেই আসনটি সাথে সাথে খালি হিসেবে গণ্য হয়।
 
-Hold status is evaluated dynamically:
+---
 
-```text
-active hold = Status == HELD && ExpiresAt > current UTC time
-```
-
-Expired holds are reported as `EXPIRED` when read. No background expiration job
-or database status sweep is used.
-
-## Repository layout
+## 📁 Repository Structure
 
 ```text
-.
+School Admission System/
 ├── frontend/
 │   ├── src/
-│   │   ├── components/       # Class list, holds, header, modals, notifications
-│   │   ├── context/          # Student ID and active hold localStorage state
-│   │   ├── services/         # Fetch-based typed API client
-│   │   └── types/            # TypeScript DTO types
-│   ├── Dockerfile
-│   └── package.json
+│   │   ├── components/         # Header, ClassList, HoldDetailModal, MyHolds, ClassCreateModal
+│   │   ├── context/            # StudentContext (persists 17-digit ID in localStorage)
+│   │   ├── services/           # Typed API service with X-Student-Id injection
+│   │   ├── types/              # DTO TypeScript interfaces
+│   │   ├── App.tsx             # Main view router
+│   │   ├── index.css           # Responsive styles & status badges
+│   │   └── main.tsx
+│   ├── public/
+│   ├── .env.example
+│   ├── Dockerfile              # Node 20 Alpine Vite development server
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── vite.config.ts
+│
 ├── backend/
-│   ├── src/SchoolAdmissionSystem.Api/
-│   │   ├── Controllers/
-│   │   ├── Data/
-│   │   ├── DTOs/
-│   │   ├── Middleware/
-│   │   ├── Models/
-│   │   └── Services/
-│   ├── tests/SchoolAdmissionSystem.Tests/
-│   ├── Dockerfile
+│   ├── src/
+│   │   └── SchoolAdmissionSystem.Api/
+│   │       ├── Common/         # StudentIdValidator (regex ^[0-9]{17}$)
+│   │       ├── Controllers/    # ClassesController, HoldsController, MeController
+│   │       ├── Data/           # ApplicationDbContext with PostgreSQL composite indexes
+│   │       ├── DTOs/           # Request & Response public DTO contracts
+│   │       ├── Exceptions/     # DomainExceptions (mapped to 400, 403, 404, 409)
+│   │       ├── Middleware/     # ExceptionHandlingMiddleware
+│   │       ├── Models/         # SchoolClass, SeatHold, HoldStatus
+│   │       ├── Services/       # ClassService, HoldService (concurrency row lock)
+│   │       ├── Program.cs      # Native .NET OpenApi, CORS, DI, Kestrel port 8080
+│   │       ├── appsettings.json
+│   │       └── SchoolAdmissionSystem.Api.csproj
+│   │
+│   ├── tests/
+│   │   └── SchoolAdmissionSystem.Tests/
+│   │       ├── ClassManagementTests.cs
+│   │       ├── HoldLifecycleTests.cs
+│   │       ├── ExpirationAndCancellationTests.cs
+│   │       ├── StudentRuleTests.cs
+│   │       ├── ConcurrencyTests.cs    # 50-task parallel burst & race for final seat
+│   │       ├── TestDbContextFactory.cs
+│   │       └── SchoolAdmissionSystem.Tests.csproj
+│   │
+│   ├── Dockerfile              # Multi-stage SDK build to ASP.NET Core runtime
 │   └── SchoolAdmissionSystem.sln
-├── docker-compose.yml
-├── .env.example
-├── ASSUMPTIONS.md
-└── AI_USAGE.md
+│
+├── docker-compose.yml          # Root-level multi-container orchestration
+├── README.md                   # Complete system documentation
+├── ASSUMPTIONS.md              # 14 domain assumptions + multi-instance concurrency proof
+├── AI_USAGE.md                 # 10-point transparent AI usage disclosure
+├── .env.example                # Configurable environment variable template
+└── .gitignore                  # Clean exclusions (bin/, obj/, node_modules/, dist/, .env)
 ```
 
-## API
+---
 
-All successful JSON responses use camelCase property names.
+## 🌐 API Contract Reference
 
-| Method | Endpoint | Required header | Description |
-|---|---|---|---|
-| `POST` | `/classes` | None | Create a class or shift |
-| `GET` | `/classes` | None | List classes with live seat counts |
-| `GET` | `/classes/{classId}` | None | Get one class with live seat counts |
-| `POST` | `/classes/{classId}/holds` | `X-Student-Id` | Create a temporary hold |
-| `GET` | `/holds/{holdId}` | None | Get hold details and effective status |
-| `POST` | `/holds/{holdId}/confirm` | `X-Student-Id` | Confirm a held seat |
-| `DELETE` | `/holds/{holdId}` | `X-Student-Id` | Cancel a hold |
-| `GET` | `/me/holds` | `X-Student-Id` | List the student's hold history |
+সকল সফল রেসপন্স camelCase JSON ফরম্যাট অনুসরণ করে:
 
-`X-Student-Id` must contain exactly 17 numeric characters. The API returns
-`400 Bad Request` for an invalid or missing value.
+| Method | Endpoint | Required Headers | Request Body | Status Codes | বিবরণ |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/classes` | None | `{"name": "...", "totalSeats": 120}` | `201`, `400`, `409` | নতুন শ্রেণি ও শিফট তৈরি করে। |
+| `GET` | `/classes` | None | None | `200` | আসন সংখ্যাসহ সকল ক্লাসের তালিকা দেয়। |
+| `GET` | `/classes/{classId}` | None | None | `200`, `404` | নির্দিষ্ট ক্লাসের বিস্তারিত আসন তথ্য দেয়। |
+| `POST` | `/classes/{classId}/holds` | `X-Student-Id` | None | `201`, `400`, `404`, `409` | শিক্ষার্থীর জন্য সাময়িক আসন হোল্ড করে। |
+| `GET` | `/holds/{holdId}` | None | None | `200`, `404` | হোল্ডের বর্তমান অবস্থা ও মেয়াদ দেখায়। |
+| `POST` | `/holds/{holdId}/confirm` | `X-Student-Id` | None | `200`, `400`, `403`, `404`, `409` | ভর্তি ফি জমা নিয়ে সিট নিশ্চিত করে। |
+| `DELETE` | `/holds/{holdId}` | `X-Student-Id` | None | `204`, `400`, `403`, `404`, `409` | হোল্ড বাতিল করে সিট ছেড়ে দেয়। |
+| `GET` | `/me/holds` | `X-Student-Id` | None | `200`, `400` | ওই শিক্ষার্থীর সকল পূর্বের ও বর্তমান আবেদন দেখায়। |
 
-Typical status codes are:
+---
 
-- `201 Created` for class and hold creation
-- `200 OK` for reads and confirmation
-- `204 No Content` for cancellation
-- `400 Bad Request` for validation errors
-- `403 Forbidden` when a student attempts to modify another student's hold
-- `404 Not Found` for an unknown class or hold
-- `409 Conflict` for a full class, duplicate active hold, expired confirmation,
-  cancelled confirmation, duplicate class name, or confirmed cancellation
+## ⚙️ Environment Variables Reference
 
-### Example requests
+প্রজেক্টের রুটে অবস্থিত `.env.example` ফাইলটির মাধ্যমে সকল কনফিগারেশন পরিবর্তনযোগ্য:
 
-Create a class:
+| Variable | Default Value | বিবরণ |
+| :--- | :--- | :--- |
+| `POSTGRES_DB` | `school_admission` | PostgreSQL ডাটাবেজের নাম |
+| `POSTGRES_USER` | `postgres` | ডাটাবেজ ইউজারনেম |
+| `POSTGRES_PASSWORD` | `postgres` | ডাটাবেজ পাসওয়ার্ড |
+| `POSTGRES_PORT` | `5432` | হোস্ট মেশিনে ডাটাবেজ পোর্ট ম্যাপিং |
+| `HOLD_DURATION_SECONDS` | `600` | আসন হোল্ড থাকার সময়সীমা (সেকেন্ডে, ডিফল্ট: ১০ মিনিট) |
+| `ASPNETCORE_URLS` | `http://+:8080` | ব্যাকএন্ড লিসেনিং URL |
+| `VITE_API_BASE_URL` | `http://localhost:8080` | ফ্রন্টএন্ড যে API URL-এ কল পাঠাবে |
 
+---
+
+## 🛠️ Docker ছাড়া লোকাল মেশিনে ম্যানুয়ালি চালানোর নিয়ম
+
+### ব্যাকএন্ড রান করা:
 ```bash
-curl -X POST http://localhost:8080/classes ^
-  -H "Content-Type: application/json" ^
-  -d "{\"name\":\"Class 6 - Morning Shift\",\"totalSeats\":120}"
-```
-
-List classes:
-
-```bash
-curl http://localhost:8080/classes
-```
-
-Create, confirm, and cancel a hold:
-
-```bash
-curl -X POST http://localhost:8080/classes/c_XXXXXXXX/holds ^
-  -H "X-Student-Id: 20152691234567890"
-
-curl -X POST http://localhost:8080/holds/h_XXXXXXXX/confirm ^
-  -H "X-Student-Id: 20152691234567890"
-
-curl -X DELETE http://localhost:8080/holds/h_XXXXXXXX ^
-  -H "X-Student-Id: 20152691234567890"
-```
-
-The `c_XXXXXXXX` and `h_XXXXXXXX` values are examples; use IDs returned by the
-API.
-
-## Configuration
-
-Copy the root [`.env.example`](./.env.example) when using Docker Compose. The
-frontend also has a [frontend/.env.example](./frontend/.env.example) for
-frontend-only development.
-
-| Variable | Default | Used by |
-|---|---:|---|
-| `POSTGRES_DB` | `school_admission` | Compose PostgreSQL |
-| `POSTGRES_USER` | `postgres` | Compose PostgreSQL |
-| `POSTGRES_PASSWORD` | `postgres` | Compose PostgreSQL |
-| `POSTGRES_PORT` | `5432` | Host port mapping |
-| `HOLD_DURATION_SECONDS` | `600` | Backend hold duration |
-| `ASPNETCORE_URLS` | `http://+:8080` | Backend listener |
-| `VITE_API_BASE_URL` | `http://localhost:8080` | Frontend API base URL |
-
-For a manually started backend, configure
-`ConnectionStrings__DefaultConnection`, for example:
-
-```text
-Host=localhost;Port=5432;Database=school_admission;Username=postgres;Password=postgres
-```
-
-The checked-in `appsettings.json` contains a masked password placeholder and
-should not be used as a real database credential.
-
-## Run locally
-
-### Prerequisites
-
-- .NET 10 SDK
-- Node.js 20 or later and npm
-- PostgreSQL 16 or later
-
-### Backend
-
-Start PostgreSQL, set `ConnectionStrings__DefaultConnection`, then run:
-
-```powershell
-cd backend\src\SchoolAdmissionSystem.Api
+cd backend/src/SchoolAdmissionSystem.Api
 dotnet run
 ```
+API স্বয়ংক্রিয়ভাবে ডাটাবেজ স্কিমা তৈরি করে `http://localhost:8080`-এ চালু হবে।
 
-The API listens on `http://localhost:8080` by default. On startup it calls
-`EnsureCreatedAsync` for a relational database; it does not run EF migrations.
-
-### Frontend
-
-```powershell
+### ফ্রন্টএন্ড রান করা:
+```bash
 cd frontend
 npm install
 npm run dev
 ```
+ফ্রন্টএন্ড `http://localhost:5173`-এ চালু হবে।
 
-The Vite development server listens on `http://localhost:5173`.
+---
 
-## Docker Compose
+## 📌 গুরুত্বপূর্ণ বিজনেস রুলস (Business Rules)
 
-The intended command is:
+1. **১৭ অঙ্কের আইডি:** `X-Student-Id` হেডারে অবশ্যই ১৭ অঙ্কের সংখ্যা থাকতে হবে (`^[0-9]{17}$`)। অন্যথায় `400 Bad Request` দেওয়া হবে।
+2. **এক ক্লাসে একটি আবেদন:** একজন শিক্ষার্থী একটি ক্লাসে একই সময়ে একটার বেশি সক্রিয় হোল্ড বা নিশ্চিত ভর্তি রাখতে পারবে না (`409 Conflict`)।
+3. **পুনরায় আবেদন:** হোল্ডের মেয়াদ শেষ হয়ে গেলে বা বাতিল করলে ওই ক্লাসে আসন খালি থাকলে শিক্ষার্থী আবার আবেদন করতে পারবে।
+4. **Idempotent নিশ্চিতকরণ:** একই আবেদনে একাধিকবার "ভর্তি ফি দিন" চাপলেও একবারই সিট নিশ্চিত হবে এবং প্রতিবারই `200 OK` রিটার্ন করবে।
+5. **মেয়াদোত্তীর্ণ আবেদন নিশ্চিত করা নিষেধ:** হোল্ডের মেয়াদ শেষ হয়ে গেলে আর কনফার্ম করা যাবে না (`409 Conflict`)।
+6. **কনফার্ম হওয়া সিট বাতিল নিষেধ:** একবার ভর্তি নিশ্চিত হয়ে গেলে তা আর বাতিল করা যাবে না (`409 Conflict`)।
+7. **মালিকানা যাচাই:** একজনের হোল্ড অন্য কোনো শিক্ষার্থী কনফার্ম বা ক্যান্সেল করতে পারবে না (`403 Forbidden`)।
 
-```powershell
-docker compose up --build
-```
+---
 
-When the backend database connection is configured with the same password as
-the PostgreSQL service, the services expose:
+## 📑 অন্যান্য ডকুমেন্টস
 
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8080`
-- PostgreSQL: `localhost:5432`
-
-Stop containers while preserving the named database volume:
-
-```powershell
-docker compose down
-```
-
-Stop containers and remove the database volume:
-
-```powershell
-docker compose down -v
-```
-
-**Current repository warning:** `docker-compose.yml` currently passes the
-literal `******` value in the backend connection string instead of
-`${POSTGRES_PASSWORD:-postgres}`. As committed, the backend may fail to
-authenticate against the default PostgreSQL container. Correct that connection
-string (or provide a database password matching the literal value) before
-relying on the Compose startup command.
-
-## Tests
-
-Run the backend test project:
-
-```powershell
-dotnet test backend\tests\SchoolAdmissionSystem.Tests\SchoolAdmissionSystem.Tests.csproj
-```
-
-The repository currently contains **24 xUnit test cases** covering:
-
-- class creation, validation, duplicate names, and inventory reads
-- hold creation and the held/confirmed/cancelled lifecycle
-- dynamic expiration and re-application
-- 17-digit student ID validation and per-class duplicate prevention
-- 50 concurrent requests competing for five seats
-- 25 concurrent requests competing for the final seat
-
-Build the frontend:
-
-```powershell
-cd frontend
-npm run build
-```
-
-## Business rules
-
-1. A student ID is exactly 17 digits and is sent in `X-Student-Id`.
-2. A student cannot have more than one live hold or confirmed admission in the
-   same class.
-3. An expired or cancelled hold may be followed by a new application if a seat
-   is available.
-4. Confirming an already confirmed hold is idempotent and returns `200 OK`.
-5. An expired or cancelled hold cannot be confirmed.
-6. A confirmed admission cannot be cancelled.
-7. Only the student who owns a hold can confirm or cancel it.
-8. The capacity invariant is maintained for the hold-creation path:
-
-   ```text
-   live held seats + confirmed seats <= total seats
-   ```
-
-## Known limitations
-
-- Payment is simulated; no payment provider is integrated.
-- There is no authentication or role-based authorization.
-- Inventory updates use HTTP polling rather than WebSockets or server-sent
-  events.
-- PostgreSQL row locking protects concurrent requests sharing the same database;
-  high-availability or multi-datacenter deployment is outside this project.
-- `EnsureCreatedAsync` is used instead of versioned database migrations.
-
-Additional design decisions are documented in
-[ASSUMPTIONS.md](./ASSUMPTIONS.md), and AI usage is documented in
-[AI_USAGE.md](./AI_USAGE.md).
+- **[ASSUMPTIONS.md](./ASSUMPTIONS.md):** এসাইনমেন্টে সরাসরি উল্লেখ না থাকা ১৪টি বিষয়ের যৌক্তিক সিদ্ধান্ত ও মাল্টি-ইনস্ট্যান্স কনকারেন্সি প্রুফ।
+- **[AI_USAGE.md](./AI_USAGE.md):** ডেভেলপমেন্টে AI ব্যবহারের স্বচ্ছ বিবরণ ও ডেভেলপার ভেরিফিকেশন রিপোর্ট।
