@@ -1,26 +1,16 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
-
 WORKDIR /app
 
-# Copy solution and project definitions for layer caching
-COPY SchoolAdmissionSystem.sln ./
+# Copy project file and restore dependencies
 COPY src/SchoolAdmissionSystem.Api/SchoolAdmissionSystem.Api.csproj src/SchoolAdmissionSystem.Api/
-COPY tests/SchoolAdmissionSystem.Tests/SchoolAdmissionSystem.Tests.csproj tests/SchoolAdmissionSystem.Tests/
-
-# Restore dependencies
 RUN dotnet restore src/SchoolAdmissionSystem.Api/SchoolAdmissionSystem.Api.csproj
 
-# Copy all source files
+# Copy source and publish
 COPY . .
+RUN dotnet publish src/SchoolAdmissionSystem.Api/SchoolAdmissionSystem.Api.csproj -c Release -o /app/publish
 
-# Build and publish release output
-RUN dotnet publish src/SchoolAdmissionSystem.Api/SchoolAdmissionSystem.Api.csproj -c Release -o /app/publish /p:UseAppHost=false
-
-# Runtime image
-FROM mcr.microsoft.com/dotnet/aspnet:10.0
-
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
-
 COPY --from=build /app/publish .
 
 EXPOSE 8080
