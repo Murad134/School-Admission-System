@@ -174,16 +174,15 @@ This document details all technical and architectural assumptions made during th
 - **What the assignment explicitly says:**  
   The assignment lists class attributes: class name, shift, and total seats. Seat numbers must be positive.
 - **What is not explicitly specified:**  
-  String length limits, shift values, acceptable ranges for `totalSeats`, and whether duplicate class names in the same shift are allowed.
+  Field length limits, acceptable ranges for `totalSeats`, whether shift is a separate column or part of the descriptive name, and whether duplicate class names are allowed.
 - **What behavior was chosen:**  
-  - `Name`: Required, trimmed, 1 to 100 characters.
-  - `Shift`: Required, trimmed, 1 to 50 characters (e.g., "Morning", "Day").
-  - `TotalSeats`: Required integer between 1 and 10,000.
-  - A composite unique constraint is enforced on `(Name, Shift)`: creating two classes with identical name and shift (e.g., two "Class 6 – Morning") is disallowed and returns HTTP `409 Conflict`.
+  - `Name`: Required, trimmed, 1 to 200 characters (incorporates both class and shift, e.g., "Class 6 – Morning Shift").
+  - `TotalSeats`: Required positive integer between 1 and 10,000.
+  - A unique constraint is enforced on `Name`: creating two classes with identical names is disallowed and returns HTTP `409 Conflict`.
 - **Why that behavior is reasonable:**  
-  In real schools, each grade has distinct shifts. Duplicate class-shift pairings cause parent confusion and split seat accounting. Bounding `TotalSeats` prevents accidental zero or negative seat allocations.
+  In school admissions, each grade and shift (e.g. "Class 6 – Morning Shift") is a distinct offering. Allowing duplicate classes with the same name causes applicant confusion and splits seat quotas. Bounding `TotalSeats` prevents zero or negative allocations.
 - **How the implementation follows that assumption:**  
-  `ClassService.CreateClassAsync()` validates inputs and checks `_dbContext.Classes.AnyAsync(c => c.Name == dto.Name && c.Shift == dto.Shift)`. EF Core model builder also registers constraints on `SchoolClass`.
+  `ClassService.CreateClassAsync()` validates inputs and checks `_dbContext.Classes.AnyAsync(c => c.Name.ToLower() == trimmedName.ToLower())`. In `ApplicationDbContext.cs`, an explicit database unique index (`idx_classes_name_unique`) is enforced on `classes.Name`.
 
 ---
 
@@ -200,14 +199,18 @@ This document details all technical and architectural assumptions made during th
 - **What is not explicitly specified:**  
   The exact JSON schema for error response payloads across all error scenarios.
 - **What behavior was chosen:**  
-  A standardized, consistent error structure is returned for all 4xx and 5xx responses:
+  A standardized, dual-compatible JSON error payload is returned for all 4xx and 5xx responses:
   ```json
   {
-    "error": "Descriptive message explaining the cause of the failure."
+    "error": "Descriptive message explaining the cause of the failure.",
+    "detail": "Descriptive message explaining the cause of the failure.",
+    "status": 409,
+    "title": "Conflict",
+    "timestamp": "2026-11-09T12:00:00Z"
   }
   ```
 - **Why that behavior is reasonable:**  
-  A single consistent JSON schema across all error responses simplifies client-side error handling in the frontend and prevents parsing mismatches.
+  Providing both `"error"` and RFC 7807 `"detail"` / `"title"` fields ensures that client libraries inspecting simple `body.error` and frontend components inspecting `body.detail` parse error messages reliably without failure.
 - **How the implementation follows that assumption:**  
   Implemented via `ExceptionHandlingMiddleware.cs` in ASP.NET Core:
   - `ValidationException` $\rightarrow$ 400 Bad Request

@@ -73,5 +73,29 @@ public class ClassManagementTests
 
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetClassByIdAsync("c_non_existent"));
     }
+
+    [Fact]
+    public async Task CreateClass_WhenClassWithSameNameAlreadyExists_ThrowsConflictException()
+    {
+        var dbName = $"ClassMgmtDb_{Guid.NewGuid():N}";
+        using var context = TestDbContextFactory.Create(dbName);
+        var service = new ClassService(context);
+
+        await service.CreateClassAsync(new CreateClassRequest
+        {
+            Name = "Class 6 - Morning Shift",
+            TotalSeats = 120
+        });
+
+        // Attempting to create duplicate class must fail with ConflictException
+        var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+            service.CreateClassAsync(new CreateClassRequest
+            {
+                Name = "Class 6 - Morning Shift",
+                TotalSeats = 100
+            }));
+
+        Assert.Contains("already exists", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
 }
 

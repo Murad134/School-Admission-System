@@ -27,13 +27,20 @@ public class ClassService : IClassService
             throw new ValidationException("totalSeats must be greater than 0.");
         }
 
+        var trimmedName = request.Name.Trim();
+        var exists = await _dbContext.Classes.AnyAsync(c => c.Name.ToLower() == trimmedName.ToLower());
+        if (exists)
+        {
+            throw new ConflictException($"Class with name '{trimmedName}' already exists.");
+        }
+
         var classId = $"c_{Guid.NewGuid():N}"[..10];
         var now = DateTime.UtcNow;
 
         var schoolClass = new SchoolClass
         {
             Id = classId,
-            Name = request.Name.Trim(),
+            Name = trimmedName,
             TotalSeats = request.TotalSeats,
             CreatedAt = now,
             UpdatedAt = now

@@ -34,6 +34,8 @@ public class HoldService : IHoldService
             throw new ValidationException("Header X-Student-Id must be a 17-digit numeric birth registration number.");
         }
 
+        studentId = StudentIdValidator.Normalize(studentId);
+
         // In-process lock per class to serialize threads within this instance
         var classLock = ClassLocks.GetOrAdd(classId, _ => new SemaphoreSlim(1, 1));
         await classLock.WaitAsync();
@@ -181,6 +183,8 @@ public class HoldService : IHoldService
             throw new ValidationException("Header X-Student-Id must be a 17-digit numeric birth registration number.");
         }
 
+        studentId = StudentIdValidator.Normalize(studentId);
+
         var holdLock = HoldLocks.GetOrAdd(holdId, _ => new SemaphoreSlim(1, 1));
         await holdLock.WaitAsync();
 
@@ -205,6 +209,7 @@ public class HoldService : IHoldService
         finally
         {
             holdLock.Release();
+            HoldLocks.TryRemove(holdId, out _);
         }
     }
 
@@ -277,6 +282,8 @@ public class HoldService : IHoldService
             throw new ValidationException("Header X-Student-Id must be a 17-digit numeric birth registration number.");
         }
 
+        studentId = StudentIdValidator.Normalize(studentId);
+
         var holdLock = HoldLocks.GetOrAdd(holdId, _ => new SemaphoreSlim(1, 1));
         await holdLock.WaitAsync();
 
@@ -300,6 +307,7 @@ public class HoldService : IHoldService
         finally
         {
             holdLock.Release();
+            HoldLocks.TryRemove(holdId, out _);
         }
     }
 
@@ -346,6 +354,8 @@ public class HoldService : IHoldService
         {
             throw new ValidationException("Header X-Student-Id must be a 17-digit numeric birth registration number.");
         }
+
+        studentId = StudentIdValidator.Normalize(studentId);
 
         var now = DateTime.UtcNow;
 

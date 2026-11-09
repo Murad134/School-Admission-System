@@ -45,7 +45,9 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(h => h.ClassId)
                 .OnDelete(DeleteBehavior.Restrict);
 
-            entity.HasIndex(c => c.Name);
+            entity.HasIndex(c => c.Name)
+                .IsUnique()
+                .HasDatabaseName("idx_classes_name_unique");
         });
 
         modelBuilder.Entity<SeatHold>(entity =>

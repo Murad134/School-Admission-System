@@ -8,10 +8,15 @@ public static class StudentIdValidator
 
     public static bool IsValid(string? studentId)
     {
-        if (string.IsNullOrWhiteSpace(studentId))
+        if (string.IsNullOrEmpty(studentId))
             return false;
 
         return Regex.IsMatch(studentId.Trim());
+    }
+
+    public static string Normalize(string studentId)
+    {
+        return studentId.Trim();
     }
 }
 

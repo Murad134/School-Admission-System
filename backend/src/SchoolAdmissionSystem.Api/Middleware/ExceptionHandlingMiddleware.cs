@@ -53,9 +53,10 @@ public class ExceptionHandlingMiddleware
 
         var errorResponse = new
         {
+            error = exception.Message,
+            detail = exception.Message,
             status = (int)statusCode,
             title = statusCode.ToString(),
-            detail = exception.Message,
             timestamp = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")
         };
 
