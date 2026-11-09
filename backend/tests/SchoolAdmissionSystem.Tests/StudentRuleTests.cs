@@ -79,14 +79,19 @@ public class StudentRuleTests
         var hold1 = await holdService.CreateHoldAsync(cls.Id, studentId);
         await holdService.CancelHoldAsync(hold1.HoldId, studentId);
 
-        // Because hold1 was cancelled, the student can now apply again
+        // Because hold1 was cancelled, the student can apply again
         var hold2 = await holdService.CreateHoldAsync(cls.Id, studentId);
         Assert.NotNull(hold2);
         Assert.Equal(HoldStatus.Held, hold2.Status);
     }
 
-    [Fact]
-    public async Task CreateHold_WithInvalidStudentId_ThrowsValidationException()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("1234567890123456")] // 16 digits
+    [InlineData("123456789012345678")] // 18 digits
+    [InlineData("2015269123456789A")] // letters
+    public async Task CreateHold_WithInvalidStudentId_ThrowsValidationException(string invalidId)
     {
         var dbName = $"StudentRuleDb_{Guid.NewGuid():N}";
         using var context = TestDbContextFactory.Create(dbName);
@@ -96,13 +101,35 @@ public class StudentRuleTests
 
         var holdService = new HoldService(context, _configuration);
 
-        // Invalid: 16 digits
         await Assert.ThrowsAsync<ValidationException>(() =>
-            holdService.CreateHoldAsync(cls.Id, "1234567890123456"));
+            holdService.CreateHoldAsync(cls.Id, invalidId));
+    }
 
-        // Invalid: letters
-        await Assert.ThrowsAsync<ValidationException>(() =>
-            holdService.CreateHoldAsync(cls.Id, "2015269123456789A"));
+    [Fact]
+    public async Task GetStudentHolds_ReturnsCurrentStudentHoldHistoryWithClassNames()
+    {
+        var dbName = $"StudentRuleDb_{Guid.NewGuid():N}";
+        using var context = TestDbContextFactory.Create(dbName);
+
+        var classService = new ClassService(context);
+        var cls1 = await classService.CreateClassAsync(new CreateClassRequest { Name = "Class 6 - Morning", TotalSeats = 50 });
+        var cls2 = await classService.CreateClassAsync(new CreateClassRequest { Name = "Class 7 - Day", TotalSeats = 50 });
+
+        var holdService = new HoldService(context, _configuration);
+        var studentId = "20152691234567890";
+        var otherStudentId = "20152699999999999";
+
+        // Student applies to cls1 and cls2
+        await holdService.CreateHoldAsync(cls1.Id, studentId);
+        await holdService.CreateHoldAsync(cls2.Id, studentId);
+
+        // Another student applies to cls1
+        await holdService.CreateHoldAsync(cls1.Id, otherStudentId);
+
+        var myHolds = await holdService.GetStudentHoldsAsync(studentId);
+
+        Assert.Equal(2, myHolds.Count);
+        Assert.Contains(myHolds, h => h.ClassId == cls1.Id && h.ClassName == "Class 6 - Morning");
+        Assert.Contains(myHolds, h => h.ClassId == cls2.Id && h.ClassName == "Class 7 - Day");
     }
 }
-
