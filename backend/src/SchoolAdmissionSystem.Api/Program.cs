@@ -78,6 +78,18 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.MapGet("/", () => Results.Ok(new
+{
+    name = "School Admission System API",
+    status = "The API is running",
+    endpoints = new
+    {
+        classes = "/classes",
+        holds = "/holds/{holdId}",
+        myHolds = "/me/holds"
+    }
+}));
+
 app.MapControllers();
 
 app.Run();

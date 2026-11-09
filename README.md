@@ -30,7 +30,7 @@ After the containers build and start successfully, access the application at:
 | Service | URL | বিবরণ |
 |---|---|---|
 | **Frontend UI (ব্রাউজারে খুলুন)** | **http://localhost:5173** | মূল ইউজার ইন্টারফেস (শিক্ষার্থী ও অ্যাডমিন) |
-| **Backend Web API** | **http://localhost:8080** | ASP.NET Core REST API |
+| **Backend Web API** | **http://localhost:8080** | ASP.NET Core REST API status and endpoint information |
 | **PostgreSQL Database** | **localhost:5432** | PostgreSQL ডাটাবেজ পোর্ট |
 
 ### To stop the application
