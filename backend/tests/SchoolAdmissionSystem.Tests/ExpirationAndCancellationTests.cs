@@ -123,3 +123,4 @@ public class ExpirationAndCancellationTests
         Assert.Equal(9, classDetail.AvailableSeats);
     }
 }
+

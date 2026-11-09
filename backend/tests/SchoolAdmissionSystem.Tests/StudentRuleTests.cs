@@ -105,3 +105,4 @@ public class StudentRuleTests
             holdService.CreateHoldAsync(cls.Id, "2015269123456789A"));
     }
 }
+

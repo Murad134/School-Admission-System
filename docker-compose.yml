@@ -60,3 +60,4 @@ volumes:
 networks:
   admission_network:
     driver: bridge
+
