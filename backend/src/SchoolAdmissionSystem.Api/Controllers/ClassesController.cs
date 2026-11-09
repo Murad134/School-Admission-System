@@ -60,3 +60,4 @@ public class ClassesController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, result);
     }
 }
+

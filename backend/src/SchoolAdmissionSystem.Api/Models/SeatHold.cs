@@ -12,3 +12,4 @@ public class SeatHold
 
     public SchoolClass? Class { get; set; }
 }
+

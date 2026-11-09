@@ -8,3 +8,4 @@ public interface IClassService
     Task<List<ClassDetailResponse>> GetAllClassesAsync();
     Task<ClassDetailResponse> GetClassByIdAsync(string classId);
 }
+
