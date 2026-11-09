@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using SchoolAdmissionSystem.Api.Common;
 using SchoolAdmissionSystem.Api.Data;
 using SchoolAdmissionSystem.Api.DTOs;
@@ -34,22 +35,26 @@ public class HoldService : IHoldService
             throw new ValidationException("Header X-Student-Id must be a 17-digit numeric birth registration number.");
         }
 
-        // In-process lock per class to serialize threads within this instance
+        // In-process lock per class to serialize threads within an instance
         var classLock = ClassLocks.GetOrAdd(classId, _ => new SemaphoreSlim(1, 1));
         await classLock.WaitAsync();
 
         try
         {
-            var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
-            return await executionStrategy.ExecuteAsync(async () =>
-            {
-                using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            var isRelational = _dbContext.Database.IsRelational();
+            IDbContextTransaction? transaction = null;
 
+            if (isRelational)
+            {
+                transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            }
+
+            try
+            {
                 SchoolClass? schoolClass;
                 if (IsPostgres())
                 {
                     // Strict PostgreSQL row-level lock on the target class
-                    // This serializes all concurrent requests across all backend instances
                     schoolClass = await _dbContext.Classes
                         .FromSqlRaw("SELECT * FROM classes WHERE \"Id\" = {0} FOR UPDATE", classId)
                         .FirstOrDefaultAsync();
@@ -67,7 +72,7 @@ public class HoldService : IHoldService
 
                 var now = DateTime.UtcNow;
 
-                // Business Rule: A student cannot have more than one active hold or confirmed admission in a class at any time
+                // Rule: One student cannot have more than one active hold or confirmed seat in a class at any time
                 var hasActiveHoldOrConfirmed = await _dbContext.Holds.AnyAsync(h =>
                     h.ClassId == classId &&
                     h.StudentId == studentId &&
@@ -79,7 +84,6 @@ public class HoldService : IHoldService
                 }
 
                 // Invariant Check: Calculate current live occupied seats under lock
-                // Held seats count ONLY if unexpired (expiresAt > now)
                 var heldSeats = await _dbContext.Holds.CountAsync(h =>
                     h.ClassId == classId &&
                     h.Status == HoldStatus.Held &&
@@ -119,7 +123,11 @@ public class HoldService : IHoldService
 
                 _dbContext.Holds.Add(hold);
                 await _dbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
+
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
 
                 return new HoldResponse
                 {
@@ -129,7 +137,14 @@ public class HoldService : IHoldService
                     Status = HoldStatus.Held,
                     ExpiresAt = hold.ExpiresAt.ToString("yyyy-MM-ddTHH:mm:ssZ")
                 };
-            });
+            }
+            finally
+            {
+                if (transaction != null)
+                {
+                    await transaction.DisposeAsync();
+                }
+            }
         }
         finally
         {
@@ -175,15 +190,19 @@ public class HoldService : IHoldService
 
         try
         {
-            var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
-            return await executionStrategy.ExecuteAsync(async () =>
-            {
-                using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            var isRelational = _dbContext.Database.IsRelational();
+            IDbContextTransaction? transaction = null;
 
+            if (isRelational)
+            {
+                transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            }
+
+            try
+            {
                 SeatHold? hold;
                 if (IsPostgres())
                 {
-                    // Lock the hold record to handle concurrent confirm/cancel requests safely
                     hold = await _dbContext.Holds
                         .FromSqlRaw("SELECT * FROM holds WHERE \"Id\" = {0} FOR UPDATE", holdId)
                         .FirstOrDefaultAsync();
@@ -204,7 +223,7 @@ public class HoldService : IHoldService
                     throw new ForbiddenException("You are not authorized to confirm this hold.");
                 }
 
-                // Idempotency: Duplicate confirm calls return 200 without increasing confirmedSeats
+                // Idempotency: Multiple confirms on an already confirmed hold return 200 without re-incrementing
                 if (hold.Status == HoldStatus.Confirmed)
                 {
                     return new ConfirmHoldResponse
@@ -236,14 +255,24 @@ public class HoldService : IHoldService
                 hold.UpdatedAt = DateTime.UtcNow;
                 await _dbContext.SaveChangesAsync();
 
-                await transaction.CommitAsync();
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
 
                 return new ConfirmHoldResponse
                 {
                     HoldId = hold.Id,
                     Status = HoldStatus.Confirmed
                 };
-            });
+            }
+            finally
+            {
+                if (transaction != null)
+                {
+                    await transaction.DisposeAsync();
+                }
+            }
         }
         finally
         {
@@ -263,11 +292,16 @@ public class HoldService : IHoldService
 
         try
         {
-            var executionStrategy = _dbContext.Database.CreateExecutionStrategy();
-            await executionStrategy.ExecuteAsync(async () =>
-            {
-                using var transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            var isRelational = _dbContext.Database.IsRelational();
+            IDbContextTransaction? transaction = null;
 
+            if (isRelational)
+            {
+                transaction = await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+            }
+
+            try
+            {
                 SeatHold? hold;
                 if (IsPostgres())
                 {
@@ -302,8 +336,18 @@ public class HoldService : IHoldService
                     await _dbContext.SaveChangesAsync();
                 }
 
-                await transaction.CommitAsync();
-            });
+                if (transaction != null)
+                {
+                    await transaction.CommitAsync();
+                }
+            }
+            finally
+            {
+                if (transaction != null)
+                {
+                    await transaction.DisposeAsync();
+                }
+            }
         }
         finally
         {
