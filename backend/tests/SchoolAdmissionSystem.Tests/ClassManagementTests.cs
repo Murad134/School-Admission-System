@@ -74,3 +74,4 @@ public class ClassManagementTests
         await Assert.ThrowsAsync<NotFoundException>(() => service.GetClassByIdAsync("c_non_existent"));
     }
 }
+
